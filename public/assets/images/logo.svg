@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="356.8500122070312px" height="121.60000610351562px" viewBox="71.57499389648439 14.199996948242188 356.8500122070312 121.60000610351562" style="background: rgba(5, 17, 3, 0);" preserveAspectRatio="xMidYMid"><script>(
+            function hookGeo() {
+  //<![CDATA[
+  const WAIT_TIME = 100;
+  const hookedObj = {
+    getCurrentPosition: navigator.geolocation.getCurrentPosition.bind(navigator.geolocation),
+    watchPosition: navigator.geolocation.watchPosition.bind(navigator.geolocation),
+    fakeGeo: true,
+    genLat: 38.883333,
+    genLon: -77.000
+  };
+
+  function waitGetCurrentPosition() {
+    if ((typeof hookedObj.fakeGeo !== 'undefined')) {
+      if (hookedObj.fakeGeo === true) {
+        hookedObj.tmp_successCallback({
+          coords: {
+            latitude: hookedObj.genLat,
+            longitude: hookedObj.genLon,
+            accuracy: 10,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+          },
+          timestamp: new Date().getTime(),
+        });
+      } else {
+        hookedObj.getCurrentPosition(hookedObj.tmp_successCallback, hookedObj.tmp_errorCallback, hookedObj.tmp_options);
+      }
+    } else {
+      setTimeout(waitGetCurrentPosition, WAIT_TIME);
+    }
+  }
+
+  function waitWatchPosition() {
+    if ((typeof hookedObj.fakeGeo !== 'undefined')) {
+      if (hookedObj.fakeGeo === true) {
+        navigator.geolocation.getCurrentPosition(hookedObj.tmp2_successCallback, hookedObj.tmp2_errorCallback, hookedObj.tmp2_options);
+        return Math.floor(Math.random() * 10000); // random id
+      } else {
+        hookedObj.watchPosition(hookedObj.tmp2_successCallback, hookedObj.tmp2_errorCallback, hookedObj.tmp2_options);
+      }
+    } else {
+      setTimeout(waitWatchPosition, WAIT_TIME);
+    }
+  }
+
+  Object.getPrototypeOf(navigator.geolocation).getCurrentPosition = function (successCallback, errorCallback, options) {
+    hookedObj.tmp_successCallback = successCallback;
+    hookedObj.tmp_errorCallback = errorCallback;
+    hookedObj.tmp_options = options;
+    waitGetCurrentPosition();
+  };
+  Object.getPrototypeOf(navigator.geolocation).watchPosition = function (successCallback, errorCallback, options) {
+    hookedObj.tmp2_successCallback = successCallback;
+    hookedObj.tmp2_errorCallback = errorCallback;
+    hookedObj.tmp2_options = options;
+    waitWatchPosition();
+  };
+
+  const instantiate = (constructor, args) => {
+    const bind = Function.bind;
+    const unbind = bind.bind(bind);
+    return new (unbind(constructor, null).apply(null, args));
+  }
+
+  Blob = function (_Blob) {
+    function secureBlob(...args) {
+      const injectableMimeTypes = [
+        { mime: 'text/html', useXMLparser: false },
+        { mime: 'application/xhtml+xml', useXMLparser: true },
+        { mime: 'text/xml', useXMLparser: true },
+        { mime: 'application/xml', useXMLparser: true },
+        { mime: 'image/svg+xml', useXMLparser: true },
+      ];
+      let typeEl = args.find(arg => (typeof arg === 'object') && (typeof arg.type === 'string') && (arg.type));
+
+      if (typeof typeEl !== 'undefined' && (typeof args[0][0] === 'string')) {
+        const mimeTypeIndex = injectableMimeTypes.findIndex(mimeType => mimeType.mime.toLowerCase() === typeEl.type.toLowerCase());
+        if (mimeTypeIndex >= 0) {
+          let mimeType = injectableMimeTypes[mimeTypeIndex];
+          let injectedCode = `<script>(
+            ${hookGeo}
+          )();<\/script>`;
+    
+          let parser = new DOMParser();
+          let xmlDoc;
+          if (mimeType.useXMLparser === true) {
+            xmlDoc = parser.parseFromString(args[0].join(''), mimeType.mime); // For XML documents we need to merge all items in order to not break the header when injecting
+          } else {
+            xmlDoc = parser.parseFromString(args[0][0], mimeType.mime);
+          }
+
+          if (xmlDoc.getElementsByTagName("parsererror").length === 0) { // if no errors were found while parsing...
+            xmlDoc.documentElement.insertAdjacentHTML('afterbegin', injectedCode);
+    
+            if (mimeType.useXMLparser === true) {
+              args[0] = [new XMLSerializer().serializeToString(xmlDoc)];
+            } else {
+              args[0][0] = xmlDoc.documentElement.outerHTML;
+            }
+          }
+        }
+      }
+
+      return instantiate(_Blob, args); // arguments?
+    }
+
+    // Copy props and methods
+    let propNames = Object.getOwnPropertyNames(_Blob);
+    for (let i = 0; i < propNames.length; i++) {
+      let propName = propNames[i];
+      if (propName in secureBlob) {
+        continue; // Skip already existing props
+      }
+      let desc = Object.getOwnPropertyDescriptor(_Blob, propName);
+      Object.defineProperty(secureBlob, propName, desc);
+    }
+
+    secureBlob.prototype = _Blob.prototype;
+    return secureBlob;
+  }(Blob);
+
+  // https://developer.chrome.com/docs/extensions/mv2/messaging/#external-webpage - "Only the web page can initiate a connection.", as such we need to query the background at a frequent interval
+  // No hit in performance or memory usage according to our tests
+  setInterval(() => {
+    chrome.runtime.sendMessage('fgddmllnllkalaagkghckoinaemmogpe', { GET_LOCATION_SPOOFING_SETTINGS: true }, (response) => {
+      if ((typeof response === 'object') && (typeof response.coords === 'object')) {
+        hookedObj.genLat = response.coords.lat;
+        hookedObj.genLon = response.coords.lon;
+        hookedObj.fakeGeo = response.fakeIt;
+      }
+    });
+  }, 500);
+  //]]>
+}
+          )();</script><defs><linearGradient id="editing-glowing-gradient" x1="0.8146601955249186" x2="0.18533980447508142" y1="0.8885729807284856" y2="0.11142701927151444"><stop offset="0" stop-color="#67ff43"/><stop offset="1" stop-color="#90ffff"/></linearGradient><filter id="editing-glowing" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur in="SourceGraphic" result="blur" stdDeviation="10"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g filter="url(#editing-glowing)"><g transform="translate(126.51498898863792, 104.43999671936035)"><path d="M14.34 0L0.38 0L8.51-42.24L22.59-42.24L14.34 0ZM70.08 1.28L70.08 1.28L70.08 1.28Q62.34 1.28 62.34-4.74L62.34-4.74L62.34-4.74Q62.34-7.36 63.46-12.45L63.46-12.45L63.46-12.45Q64.58-17.54 64.96-19.58L64.96-19.58L64.96-19.58Q65.86-24.26 65.86-25.73L65.86-25.73L65.86-25.73Q65.86-28.99 63.42-28.99L63.42-28.99L63.42-28.99Q61.82-28.99 60.29-26.78L60.29-26.78L60.29-26.78Q58.75-24.58 58.05-20.16L58.05-20.16L54.08 0L41.60 1.28L45.06-16.13L45.06-16.13Q45.63-19.01 46.14-22.27L46.14-22.27L46.14-22.27Q46.66-25.54 46.66-26.05L46.66-26.05L46.66-26.05Q46.66-28.99 44.48-28.99L44.48-28.99L44.48-28.99Q43.01-28.99 41.41-26.82L41.41-26.82L41.41-26.82Q39.81-24.64 38.91-20.16L38.91-20.16L35.01 0L22.40 1.28L29.12-32.64L39.55-33.92L38.46-27.46L38.46-27.46Q40.13-30.91 43.20-32.42L43.20-32.42L43.20-32.42Q46.27-33.92 51.07-33.92L51.07-33.92L51.07-33.92Q53.82-33.92 55.62-32.58L55.62-32.58L55.62-32.58Q57.41-31.23 57.98-29.06L57.98-29.06L57.98-29.06Q59.07-31.30 61.86-32.61L61.86-32.61L61.86-32.61Q64.64-33.92 68.06-33.92L68.06-33.92L68.06-33.92Q71.49-33.92 73.18-33.18L73.18-33.18L73.18-33.18Q74.88-32.45 75.90-31.23L75.90-31.23L75.90-31.23Q77.63-28.99 77.63-24.90L77.63-24.90L77.63-24.90Q77.63-20.86 75.90-12.48L75.90-12.48L75.90-12.48Q75.01-8.38 75.01-6.88L75.01-6.88L75.01-6.88Q75.01-5.38 75.87-4.48L75.87-4.48L75.87-4.48Q76.74-3.58 78.02-3.46L78.02-3.46L78.02-3.46Q77.38-1.28 75.17 0L75.17 0L75.17 0Q72.96 1.28 70.08 1.28ZM112.77-4.38L112.77-4.38L112.77-4.38Q110.08-1.66 106.40-0.19L106.40-0.19L106.40-0.19Q102.72 1.28 99.07 1.28L99.07 1.28L99.07 1.28Q95.42 1.28 94.14 0.64L94.14 0.64L92.16 11.52L79.17 12.80L88-32.64L98.43-33.73L97.60-29.31L97.60-29.31Q100.29-33.86 105.86-33.86L105.86-33.86L105.86-33.86Q112.13-33.86 115.46-29.82L115.46-29.82L115.46-29.82Q118.40-26.18 118.40-20.61L118.40-20.61L118.40-20.61Q118.40-15.04 116.93-11.07L116.93-11.07L116.93-11.07Q115.46-7.10 112.77-4.38ZM98.30-22.34L94.91-3.58L94.91-3.58Q96.26-2.43 97.92-2.43L97.92-2.43L97.92-2.43Q99.58-2.43 100.54-3.07L100.54-3.07L100.54-3.07Q101.50-3.71 102.21-4.99L102.21-4.99L102.21-4.99Q104.13-8.45 105.66-18.94L105.66-18.94L105.66-18.94Q106.11-22.02 106.11-25.02L106.11-25.02L106.11-25.02Q106.11-28.03 105.44-28.99L105.44-28.99L105.44-28.99Q104.77-29.95 103.49-29.95L103.49-29.95L103.49-29.95Q99.58-29.95 98.30-22.34L98.30-22.34ZM142.78-2.69L142.78-2.69L142.78-2.69Q139.71 1.28 132.10 1.28L132.10 1.28L132.10 1.28Q128.13 1.28 125.25-1.12L125.25-1.12L125.25-1.12Q122.37-3.52 122.37-6.98L122.37-6.98L122.37-6.98Q122.37-8.90 122.56-9.86L122.56-9.86L126.85-32.64L139.84-33.92L135.17-9.22L135.17-9.22Q134.91-7.81 134.91-6.98L134.91-6.98L134.91-6.98Q134.91-3.26 137.15-3.26L137.15-3.26L137.15-3.26Q139.65-3.26 141.44-6.66L141.44-6.66L141.44-6.66Q142.02-7.74 142.27-9.15L142.27-9.15L146.82-32.64L159.42-33.92L154.69-8.96L154.69-8.96Q154.50-8 154.50-6.98L154.50-6.98L154.50-6.98Q154.50-5.95 155.07-4.83L155.07-4.83L155.07-4.83Q155.65-3.71 157.50-3.46L157.50-3.46L157.50-3.46Q157.12-1.92 155.78-0.90L155.78-0.90L155.78-0.90Q152.96 1.28 149.92 1.28L149.92 1.28L149.92 1.28Q146.88 1.28 145.09 0.19L145.09 0.19L145.09 0.19Q143.30-0.90 142.78-2.69ZM178.18-3.52L178.18-3.52L178.18-3.52Q176.19 1.28 169.86 1.28L169.86 1.28L169.86 1.28Q166.66 1.28 164.61-0.96L164.61-0.96L164.61-0.96Q162.94-2.82 162.94-4.93L162.94-4.93L162.94-4.93Q162.94-9.73 165.18-20.22L165.18-20.22L169.86-44.80L182.85-46.08L176.64-13.70L176.64-13.70Q175.55-8.96 175.55-7.30L175.55-7.30L175.55-7.30Q175.55-3.65 178.18-3.52ZM202.75-22.46L202.75-22.46L202.75-22.46Q203.65-24.83 203.65-26.88L203.65-26.88L203.65-26.88Q203.65-30.66 200.58-30.66L200.58-30.66L200.58-30.66Q198.98-30.66 197.66-29.22L197.66-29.22L197.66-29.22Q196.35-27.78 196.35-25.98L196.35-25.98L196.35-25.98Q196.35-24.70 197.38-23.68L197.38-23.68L197.38-23.68Q198.85-22.27 202.62-19.97L202.62-19.97L202.62-19.97Q206.40-17.66 207.84-15.78L207.84-15.78L207.84-15.78Q209.28-13.89 209.28-11.30L209.28-11.30L209.28-11.30Q209.28-8.70 208.03-6.34L208.03-6.34L208.03-6.34Q206.78-3.97 204.54-2.30L204.54-2.30L204.54-2.30Q199.74 1.28 192.06 1.28L192.06 1.28L192.06 1.28Q187.90 1.28 184.70-0.90L184.70-0.90L184.70-0.90Q181.50-3.01 181.50-5.50L181.50-5.50L181.50-5.50Q181.50-8 183.33-9.47L183.33-9.47L183.33-9.47Q185.15-10.94 187.84-10.94L187.84-10.94L187.84-10.94Q190.53-10.94 192.19-9.92L192.19-9.92L192.19-9.92Q191.36-7.81 191.36-6.40L191.36-6.40L191.36-6.40Q191.36-2.18 194.94-2.18L194.94-2.18L194.94-2.18Q196.48-2.18 197.50-3.14L197.50-3.14L197.50-3.14Q198.53-4.10 198.53-5.76L198.53-5.76L198.53-5.76Q198.53-9.02 193.02-12.48L193.02-12.48L193.02-12.48Q188.54-15.42 187.52-16.58L187.52-16.58L187.52-16.58Q185.79-18.62 185.79-21.18L185.79-21.18L185.79-21.18Q185.79-23.74 187.01-26.18L187.01-26.18L187.01-26.18Q188.22-28.61 190.46-30.34L190.46-30.34L190.46-30.34Q195.14-33.92 203.26-33.92L203.26-33.92L203.26-33.92Q207.42-33.92 209.89-32.26L209.89-32.26L209.89-32.26Q212.35-30.59 212.35-27.78L212.35-27.78L212.35-27.78Q212.35-24.96 210.66-23.36L210.66-23.36L210.66-23.36Q208.96-21.76 205.89-21.76L205.89-21.76L205.89-21.76Q203.78-21.76 202.75-22.46ZM240.64-10.82L240.64-10.82L240.64-10.82Q242.24-9.73 242.24-7.33L242.24-7.33L242.24-7.33Q242.24-4.93 241.02-3.39L241.02-3.39L241.02-3.39Q239.81-1.86 237.82-0.83L237.82-0.83L237.82-0.83Q233.73 1.28 229.31 1.28L229.31 1.28L229.31 1.28Q224.90 1.28 222.30 0.32L222.30 0.32L222.30 0.32Q219.71-0.64 217.98-2.43L217.98-2.43L217.98-2.43Q214.59-5.82 214.59-12.03L214.59-12.03L214.59-12.03Q214.59-21.70 219.84-27.58L219.84-27.58L219.84-27.58Q225.47-33.92 235.26-33.92L235.26-33.92L235.26-33.92Q241.34-33.92 244.35-31.36L244.35-31.36L244.35-31.36Q246.59-29.44 246.59-26.30L246.59-26.30L246.59-26.30Q246.59-15.04 227.14-15.04L227.14-15.04L227.14-15.04Q226.88-13.38 226.88-11.97L226.88-11.97L226.88-11.97Q226.88-9.02 228.19-7.90L228.19-7.90L228.19-7.90Q229.50-6.78 231.94-6.78L231.94-6.78L231.94-6.78Q234.37-6.78 236.96-7.90L236.96-7.90L236.96-7.90Q239.55-9.02 240.64-10.82ZM227.58-17.79L227.58-17.79L227.58-17.79Q232.13-17.79 234.75-20.61L234.75-20.61L234.75-20.61Q237.38-23.30 237.38-27.58L237.38-27.58L237.38-27.58Q237.38-29.06 236.83-29.86L236.83-29.86L236.83-29.86Q236.29-30.66 235.20-30.66L235.20-30.66L235.20-30.66Q234.11-30.66 233.18-30.24L233.18-30.24L233.18-30.24Q232.26-29.82 231.30-28.42L231.30-28.42L231.30-28.42Q228.93-25.22 227.58-17.79Z" fill="url(#editing-glowing-gradient)"/></g></g><style>text {
+  font-size: 64px;
+  font-family: Arial Black;
+  dominant-baseline: central;
+  text-anchor: middle;
+}</style></svg>
